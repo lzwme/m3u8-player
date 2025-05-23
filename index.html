@@ -27,7 +27,7 @@
     html {
       transition: all 1s linear;
     }
-    .fullscreen nav,
+    .fullscreen header,
     .fullscreen footer,
     .tk-footer {
       display: none !important;
@@ -51,18 +51,18 @@
   </style>
 </head>
 
-<body class="bg-gray-50 min-h-screen flex flex-col">
+<body class="bg-gray-50 min-h-screen flex flex-col page-warper">
   <!-- 顶部导航 -->
-  <nav class="bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow">
+  <header class="bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow">
     <div class="container mx-auto flex justify-between items-center py-3 px-4">
-      <a href="/" class="text-xl font-bold am-topbar-logo">M3U8 播放器</a>
+      <a href="./" class="text-xl font-bold am-topbar-logo">M3U8 播放器</a>
       <div class="space-x-4">
         <a href="https://lzw.me/x/m3u8-downloader" target="_blank" rel="noopener" class="hover:underline">M3U8转MP4下载</a>
         <a href="https://lzw.me/tools" target="_blank" rel="noopener" class="hover:underline">好玩</a>
         <a href="https://tool.lzw.me" target="_blank" rel="noopener" class="hover:underline">工具箱</a>
       </div>
     </div>
-  </nav>
+  </header>
   <main class="container mx-auto py-6 px-4 flex-1 w-full">
     <!-- 输入卡片 -->
     <div class="bg-white rounded-lg shadow p-4 mb-4" id="inputForm">
