@@ -35,7 +35,7 @@
       display: none !important;
     }
 
-    .fullscreen #dplayer {
+    .fullscreen #player {
       position: fixed;
       top: 0;
       left: 0;
@@ -44,6 +44,11 @@
       z-index: 9999;
       margin: 0;
       padding: 0;
+    }
+
+    #player > .art-video-player {
+      min-height: 65vh;
+      aspect-ratio: 16/9;
     }
 
     #history-list,
@@ -81,12 +86,21 @@
             class="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
             value="">
           <button type="button" id="playBtn"
-            class="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none"
+            class="player-btn flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none"
             title="播放">
             <svg class="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
               <path d="M6 4l12 6-12 6V4z" />
             </svg>
             播放
+          </button>
+          <button type="button" id="dplayerBtn"
+            class="player-btn flex items-center px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700 focus:outline-none"
+            data-player="dplayer"
+            title="使用 DPlayper 播放">
+            <svg class="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M6 4l12 6-12 6V4z" />
+            </svg>
+            DPlayer
           </button>
           <button type="button" id="rotateBtn"
             class="flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none"
@@ -117,11 +131,13 @@
         </div>
       </form>
     </div>
+
     <!-- 播放器卡片 -->
     <div class="bg-white rounded-lg shadow mb-4 min-h-[300px] flex flex-col items-center justify-center">
-      <div id="dplayer" class="w-full"></div>
+      <div id="player" class="w-full user-select-none"></div>
       <div id="playList" class="w-full p-2 hidden flex flex-row flex-wrap"></div>
     </div>
+
     <!-- 历史记录与收藏夹卡片 -->
     <div class="bg-gray-800 rounded-lg shadow p-4 mb-6 text-gray-100" id="history-fav-list">
       <div class="flex border-b border-gray-700 mb-2">
@@ -190,11 +206,8 @@
   <script src="https://s4.zstatic.net/ajax/libs/webtorrent/1.9.7/webtorrent.min.js"
     integrity="sha512-La7GYF21hnnHJqijQVifXPVV6pvZNYVOWoKX5FJAsJhokKfvlOib6Buh5LvX1vtbj85ZQEDQF5k8nQDCU6A4nQ=="
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script src="https://s4.zstatic.net/ajax/libs/dplayer/1.27.1/DPlayer.min.js"
-    integrity="sha512-w5fy6uED2aK/xX8/Rdh3bU3ejRE7q7PGfQK/2Klw62QSoZULVAKITYwo2PDQv+kNEJ+Nme0qHQSUJ9UTXnheuA=="
-    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="https://lzw.me/x/lib/utils/h5-common.js?v=018"></script>
-  <script src="assets/main.js?v=1.0.0"></script>
+  <script src="assets/main.js?v=1.0.2"></script>
 </body>
 
 </html>

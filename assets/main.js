@@ -6,7 +6,7 @@
     if (!uri.startsWith('http://localhost')) {
       h5Utils.alert('由于浏览器安全限制，您访问的 https 页面下无法播放 http 协议的资源，请手动修改访问 URL 改为 http:// 格式并重新访问');
     } else {
-      document.querySelector('a.am-topbar-logo').setAttribute('href', (location.href.replace('https:', 'http:')));
+      document.querySelector('a.am-topbar-logo').setAttribute('href', location.href.replace('https:', 'http:'));
     }
   }
 
@@ -18,8 +18,16 @@
   }
 
   const MP = {
-    defaultUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+    cdn: {
+      m3u8Demo: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+      dplayer: 'https://s4.zstatic.net/ajax/libs/dplayer/1.26.0/DPlayer.min.js',
+      artplayer: [
+        'https://s4.zstatic.net/ajax/libs/artplayer/5.2.2/artplayer.min.js',
+        'https://cdn.jsdelivr.net/npm/artplayer-plugin-hls-control/dist/artplayer-plugin-hls-control.min.js',
+      ],
+    },
     inc: {
+      art: null,
       dp: null,
       hls: null,
       flvPlayer: null,
@@ -36,12 +44,12 @@
       rotateBtn: document.querySelector('#rotateBtn'),
       downloadBtn: document.querySelector('#downloadBtn'),
       inputForm: document.querySelector('#inputForm'),
-      dplayer: document.querySelector('#dplayer'),
+      player: document.querySelector('#player'),
       historyFavList: document.querySelector('#history-fav-list'),
       playList: document.querySelector('#playList'),
     },
     init() {
-      MP.el.urlInput.setAttribute('placeholder', MP.defaultUrl);
+      MP.el.urlInput.setAttribute('placeholder', MP.cdn.m3u8Demo);
       MP.renderList('history');
       MP.renderList('fav');
       MP.initEvent();
@@ -61,13 +69,13 @@
           if (urlParams.showInput != '1') MP.el.inputForm.classList.add('hidden');
         }
       } else if (!MP.data.playList.length && urlParams.autoplay) {
-        MP.play(MP.defaultUrl);
+        MP.play(MP.cdn.m3u8Demo);
       }
     },
 
     initEvent() {
-      MP.el.playBtn.addEventListener('click', ev => {
-        let url = MP.el.urlInput.value.trim() || MP.defaultUrl;
+      const onPlayBtnClk = ev => {
+        let url = MP.el.urlInput.value.trim() || MP.cdn.m3u8Demo;
         let m3u8Str = MP.el.m3u8Content.value.trim();
         let type = '';
 
@@ -103,8 +111,10 @@
             }
           }
         }
-        MP.play(url, type);
-      });
+
+        MP.play(url, type, ev.target.getAttribute('data-player'));
+      };
+      document.querySelectorAll('.player-btn').forEach(el => el.addEventListener('click', onPlayBtnClk));
 
       let vedioRotate = 0;
       MP.el.rotateBtn.addEventListener('click', ev => {
@@ -112,7 +122,7 @@
         vedioRotate += 90;
         if (vedioRotate === 360) vedioRotate = 0;
 
-        MP.el.dplayer.style.transform = `rotate(${vedioRotate}deg)`;
+        MP.el.player.style.transform = `rotate(${vedioRotate}deg)`;
       });
 
       MP.el.downloadBtn.addEventListener('click', () => {
@@ -259,23 +269,13 @@
       saveToStorage('m3u8_history', history);
       MP.renderList('history');
     },
-    // see https://dplayer.diygod.dev/zh/guide.html
-    play(url, type) {
+    play(url, type, player = 'artplayer') {
       if (url) url = decodeURIComponent(url);
       else return h5Utils.alert('请输入 m3u8 的 URL 或者内容');
-      document.documentElement.scrollTo({ top: MP.el.dplayer.offsetTop - 10, behavior: 'smooth' });
-      // MP.el.dplayer.scrollIntoView();
 
-      if (!type) {
-        if (url.includes('.m3u8')) {
-          type = 'auto';
-          if (Hls.isSupported()) type = 'customHls';
-        } else if (url.includes('torrent') || url.includes('magnet:')) type = 'customWebTorrent';
-        else if (url.includes('.ts')) type = 'customHls';
-        else if (url.includes('.mp4')) type = 'mp4';
-        else if (url.includes('.flv')) type = 'customFlv';
-        else type = 'auto';
-      }
+      document.documentElement.scrollTo({ top: MP.el.player.offsetTop - 10, behavior: 'smooth' });
+      MP.el.player.classList.remove('hidden');
+      // MP.el.player.scrollIntoView();
 
       if (!url.startsWith('blob:')) {
         MP.addHistory(url);
@@ -303,10 +303,136 @@
       }
 
       if (MP.inc.dp) MP.inc.dp.destroy();
-      MP.el.dplayer.classList.remove('hidden');
+      if (MP.inc.art) MP.inc.art.destroy();
+
+      // bt 总使用 dplayer
+      if (url.includes('torrent') || url.includes('magnet:')) player = 'dplayer';
+
+      console.log('play, player:', player, url, type);
+      if (player === 'dplayer') this.dplayer(url, type);
+      else this.artplayer(url, type);
+    },
+    // see https://artplayer.org/document/start/option.html
+    async artplayer(url, type) {
+      await h5Utils.loadJsOrCss(MP.cdn.artplayer);
+
+      MP.inc.art = new Artplayer({
+        container: MP.el.player,
+        url, // 'https://playertest.longtailvideo.com/adaptive/elephants_dream_v4/index.m3u8',
+        // airplay: true,
+        aspectRatio: true, // 是否显示视频长宽比功能
+        autoplay: true,
+        // autoMini: true, // 当播放器滚动到浏览器视口以外时，自动进入 迷你播放 模式
+        autoPlayback: true,
+        // autoSize: true, // 自动调整播放器尺寸
+        fastForward: true,
+        flip: true, // 是否显示视频翻转功能
+        fullscreen: true, // 是否在底部控制栏里显示播放器 窗口全屏 按钮
+        fullscreenWeb: true, // 是否在底部控制栏里显示播放器 网页全屏 按钮
+        lock: true,
+        miniProgressBar: true,
+        pip: true, // 是否在底部控制栏里显示 画中画 的开关按钮
+        playbackRate: true, // 是否显示视频播放速度功能
+        screenshot: true,
+        setting: true,
+        theme: '#39f',
+        // type,
+        plugins: [
+          artplayerPluginHlsControl({
+            quality: {
+              // Show qualitys in control
+              control: true,
+              // Show qualitys in setting
+              setting: true,
+              // Get the quality name from level
+              getName: level => level.height + 'P',
+              // I18n
+              title: 'Quality',
+              auto: 'Auto',
+            },
+            audio: {
+              // Show audios in control
+              control: false,
+              // Show audios in setting
+              setting: true,
+              // Get the audio name from track
+              getName: track => track.name,
+              // I18n
+              title: 'Audio',
+              auto: 'Auto',
+            },
+          }),
+        ],
+        customType: {
+          m3u8: function playM3u8(video, url, art) {
+            if (Hls.isSupported()) {
+              if (art.hls) art.hls.destroy();
+              const hls = new Hls();
+              hls.loadSource(url);
+              hls.attachMedia(video);
+              art.hls = hls;
+              art.on('destroy', () => hls.destroy());
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+              video.src = url;
+            } else {
+              art.notice.show = 'Unsupported playback format: m3u8';
+            }
+          },
+          flv: function playFlv(video, url, art) {
+            if (flvjs.isSupported()) {
+              if (art.flv) art.flv.destroy();
+              const flv = flvjs.createPlayer({ type: 'flv', url });
+              flv.attachMediaElement(video);
+              flv.load();
+              art.flv = flv;
+              art.on('destroy', () => flv.destroy());
+            } else {
+              art.notice.show = 'Unsupported playback format: flv';
+            }
+          },
+          torrent: async function playTorrent(video, url, art) {
+            if (WebTorrent.WEBRTC_SUPPORT) {
+              if (art.torrent) art.torrent.destroy();
+              art.torrent = new WebTorrent();
+
+              await navigator.serviceWorker.register('./assets/webtorrent.sw.min.js');
+              art.torrent.loadWorker(navigator.serviceWorker.controller);
+
+              art.torrent.add(url, torrent => {
+                const file = torrent.files.find(file =>  file.name.endsWith('.mp4'));
+                file.streamTo(video);
+              });
+
+              art.on('destroy', () => art.torrent.destroy());
+            } else {
+              art.notice.show = 'Unsupported playback format: torrent';
+            }
+          },
+        },
+      });
+
+      MP.inc.art.on('video:ended', () => {
+        console.log('[artplayer]播放完毕', url);
+        MP.playNext(url, 'artplayer');
+      });
+    },
+    // see https://dplayer.diygod.dev/zh/guide.html
+    async dplayer(url, type) {
+      await h5Utils.loadJsOrCss(MP.cdn.dplayer);
+
+      if (!type) {
+        if (url.includes('.m3u8')) {
+          type = 'auto';
+          if (Hls.isSupported()) type = 'customHls';
+        } else if (url.includes('torrent') || url.includes('magnet:')) type = 'customWebTorrent';
+        else if (url.includes('.ts')) type = 'customHls';
+        else if (url.includes('.mp4')) type = 'mp4';
+        else if (url.includes('.flv')) type = 'customFlv';
+        else type = 'auto';
+      }
 
       MP.inc.dp = new DPlayer({
-        container: MP.el.dplayer,
+        container: MP.el.player,
         autoplay: true,
         airplay: true,
         theme: '#FADFA3',
@@ -413,15 +539,17 @@
       // 当播放完毕时，查找 playlist 中下一个视频播放
       MP.inc.dp.on('ended', () => {
         console.log('播放完毕', url);
-
-        if (MP.data.playList.length) {
-          const idx = MP.data.playList.findIndex(i => i.url === url);
-          if (idx > -1) {
-            const item = MP.data.playList[idx + 1];
-            if (item) MP.play(item.url, item.type);
-          }
-        }
+        MP.playNext(url, 'dplayer');
       });
+    },
+    playNext(url, player) {
+      if (!MP.data.playList.length) return;
+
+      const idx = MP.data.playList.findIndex(i => i.url === url);
+      if (idx > -1) {
+        const item = MP.data.playList[idx + 1];
+        if (item) MP.play(item.url, item.type, player);
+      }
     },
     formatTime(ts) {
       const d = new Date(ts);
