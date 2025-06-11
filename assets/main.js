@@ -11,10 +11,11 @@
   }
 
   function saveToStorage(key, arr) {
-    localStorage.setItem(key, JSON.stringify(arr));
+    if (!key) return;
+    localStorage.setItem(`mp_${key}`, JSON.stringify(arr));
   }
   function getFromStorage(key) {
-    return JSON.parse(localStorage.getItem(key) || '[]');
+    return JSON.parse(localStorage.getItem(`mp_${key}`) || localStorage.getItem(key) || '[]');
   }
 
   const MP = {
@@ -48,6 +49,18 @@
       historyFavList: document.querySelector('#history-fav-list'),
       playList: document.querySelector('#playList'),
     },
+    getUrl(alertOnFail = false) {
+      let url = MP.el.urlInput.value.trim() || MP.cdn.m3u8Demo;
+      if (!url.startsWith('http')) {
+        if (url.includes('http')) {
+          const r = url.match(/https?:\/\/[a-z0-9\-\.\/]+/i);
+          if (r) url = r[0];
+        } else url = '';
+      }
+
+      if (!url && alertOnFail) h5Utils.alert('请输入正确的 m3u8 视频地址');
+      return url;
+    },
     init() {
       MP.el.urlInput.setAttribute('placeholder', MP.cdn.m3u8Demo);
       MP.renderList('history');
@@ -55,7 +68,7 @@
       MP.initEvent();
 
       if ((MP.data.playList.length && !uri) || MP.data.playList.find(d => d.url === uri)) {
-        MP.renderPlayList();
+        MP.renderPlayList(MP.data.playList);
       }
 
       if (uri) {
@@ -75,12 +88,14 @@
 
     initEvent() {
       const onPlayBtnClk = ev => {
-        let url = MP.el.urlInput.value.trim() || MP.cdn.m3u8Demo;
+        let url = MP.getUrl(false);
         let m3u8Str = MP.el.m3u8Content.value.trim();
         let type = '';
 
         if (m3u8Str) {
-          if (m3u8Str.includes('.ts')) {
+          const isExtM3U = m3u8Str.startsWith('#EXTM3U');
+
+          if (isExtM3U) {
             const m = /EXT-X-KEY: *METHOD=AES-\d+,URI=['"]*\//.exec(m3u8Str);
             if (m) {
               if (url.startsWith('http')) {
@@ -89,6 +104,14 @@
                 return h5Utils.alert('您输入的 M3U8 内容为加密资源，若播放失败，请同时输入来源页面 URL 地址尝试获取解密信息');
               }
             }
+
+            m3u8Str = m3u8Str
+              .split('\n')
+              .map(line => {
+                if (!line.startsWith('http') && (line.includes('.m3u8') || line.includes('.ts'))) line = new URL(line, url).toString();
+                return line;
+              })
+              .join('\n');
 
             type = 'customHls';
             url = URL.createObjectURL(new Blob([m3u8Str], { type: 'text/plain;charset=utf-8' }));
@@ -106,7 +129,6 @@
             if (list.length) {
               this.data.playList = list;
               saveToStorage('playlist', list);
-              this.renderPlayList();
               url = list[0].url;
             }
           }
@@ -115,6 +137,23 @@
         MP.play(url, type, ev.target.getAttribute('data-player'));
       };
       document.querySelectorAll('.player-btn').forEach(el => el.addEventListener('click', onPlayBtnClk));
+
+      document.querySelector('#clearM3u8ContentBtn').addEventListener('click', () => (MP.el.m3u8Content.value = ''));
+
+      document.querySelector('#getAndEditBtn').addEventListener('click', () => {
+        let url = MP.getUrl(true);
+        if (!url) return;
+
+        fetch(url)
+          .then(d => d.text())
+          .then(str => {
+            MP.el.m3u8Content.value = str;
+            MP.el.m3u8Content.setAttribute('rows', 10);
+            MP.addHistory(url);
+            h5Utils.alert('获取成功，请在下方编辑后播放', { icon: 'success' }).then(() => setTimeout(() => MP.el.m3u8Content.focus(), 350));
+          })
+          .catch(err => h5Utils.alert('获取失败：' + err.message));
+      });
 
       let vedioRotate = 0;
       MP.el.rotateBtn.addEventListener('click', ev => {
@@ -126,12 +165,9 @@
       });
 
       MP.el.downloadBtn.addEventListener('click', () => {
-        let url = MP.el.urlInput.value;
-
-        if (!url) return h5Utils.alert('请输入 m3u8 的 url 地址');
+        let url = MP.getUrl(true);
+        if (!url) return;
         if (!url.includes('.m3u8')) return h5Utils.alert('仅支持 m3u8 格式的视频下载');
-
-        if (url === 'test.m3u8') url = location.origin + location.pathname + url;
         window.open('https://lzw.me/x/m3u8-downloader?source=' + encodeURIComponent(url));
       });
 
@@ -146,13 +182,7 @@
       });
 
       const dropzone = document.querySelector('main.container');
-      dropzone.addEventListener(
-        'dragover',
-        function (event) {
-          event.preventDefault();
-        },
-        false
-      );
+      dropzone.addEventListener('dragover', event => event.preventDefault(), false);
       dropzone.addEventListener(
         'drop',
         e => {
@@ -215,21 +245,14 @@
         }
       });
     },
-    renderPlayList(list) {
-      if (!list) list = this.data.playList;
-      const container = MP.el.playList;
-      if (!list?.length) return container.classList.add('hidden');
+    renderPlayList(list = []) {
+      if (!list.length) return MP.el.playList.classList.add('hidden');
 
-      container.classList.remove('hidden');
-
-      let html = [];
-
-      list.forEach((item, idx) => {
-        html.push(
-          `<button class="play-btn text-xs text-gray-100 p-1 m-1 bg-blue-600 hover:bg-blue-700 rounded" data-idx="${idx}" data-url="${item.url}">${item.name}</button>`
-        );
+      const html = list.map((item, idx) => {
+        return `<button class="play-btn text-xs text-gray-100 p-1 m-1 bg-blue-600 hover:bg-blue-700 rounded" data-idx="${idx}" data-url="${item.url}">${item.name}</button>`;
       });
-      container.innerHTML = html.join('');
+      MP.el.playList.classList.remove('hidden');
+      MP.el.playList.innerHTML = html.join('');
     },
     // 渲染列表
     renderList(type) {
@@ -261,30 +284,33 @@
       `;
       });
     },
-    addHistory(url) {
+    addHistory(url, updateURI = true) {
       if (!url) return;
-      let history = getFromStorage('m3u8_history');
-      history = history.filter(i => i.url !== url).slice(0, 199);
-      history.unshift({ url, time: Date.now() });
-      saveToStorage('m3u8_history', history);
+      let list = (getFromStorage('m3u8_history') || []).filter(i => i.url !== url).slice(0, 199);
+
+      list.unshift({ url, time: Date.now() });
+      saveToStorage('m3u8_history', list);
       MP.renderList('history');
+
+      if (updateURI) {
+        const params = new URLSearchParams(location.search);
+        if (params.get(url) !== encodeURIComponent(url)) {
+          params.set('url', encodeURIComponent(url));
+          window.history.replaceState({}, '', location.pathname + '?' + params.toString());
+        }
+      }
     },
     play(url, type, player = 'artplayer') {
       if (url) url = decodeURIComponent(url);
       else return h5Utils.alert('请输入 m3u8 的 URL 或者内容');
 
-      document.documentElement.scrollTo({ top: MP.el.player.offsetTop - 10, behavior: 'smooth' });
       MP.el.player.classList.remove('hidden');
+      MP.renderPlayList(MP.data.playList.find(d => d.url === uri) ? MP.data.playList : []);
+      document.documentElement.scrollTo({ top: MP.el.player.offsetTop - 10, behavior: 'smooth' });
       // MP.el.player.scrollIntoView();
 
       if (!url.startsWith('blob:')) {
         MP.addHistory(url);
-        // 设置为 url 参数
-        if (url !== uri) {
-          const params = new URLSearchParams(location.search);
-          params.set('url', encodeURIComponent(url));
-          history.replaceState({}, '', location.pathname + '?' + params.toString());
-        }
 
         if (MP.data.playList.length) {
           const idx = MP.data.playList.findIndex(i => i.url === url);
@@ -300,20 +326,33 @@
             });
           }
         }
+      } else {
+        h5Utils.toast('开始播放编辑框内容');
       }
 
-      if (MP.inc.dp) MP.inc.dp.destroy();
-      if (MP.inc.art) MP.inc.art.destroy();
+      if (!type) {
+        if (url.includes('.m3u8')) {
+          type = 'auto';
+          if (Hls.isSupported()) type = 'customHls';
+        } else if (url.includes('torrent') || url.includes('magnet:')) type = 'customWebTorrent';
+        else if (url.includes('.ts')) type = 'customHls';
+        else if (url.includes('.mp4')) type = 'mp4';
+        else if (url.includes('.flv')) type = 'customFlv';
+        else type = 'auto';
+      }
 
       // bt 总使用 dplayer
       if (url.includes('torrent') || url.includes('magnet:')) player = 'dplayer';
 
-      console.log('play, player:', player, url, type);
+      if (MP.inc.dp) MP.inc.dp.destroy();
+      if (MP.inc.art) MP.inc.art.destroy();
+
+      console.log('player:', player, url, type);
       if (player === 'dplayer') this.dplayer(url, type);
-      else this.artplayer(url, type);
+      else this.artplayer(url, type.replace('custom', '').toLocaleLowerCase());
     },
     // see https://artplayer.org/document/start/option.html
-    async artplayer(url, type) {
+    async artplayer(url, type = '') {
       await h5Utils.loadJsOrCss(MP.cdn.artplayer);
 
       MP.inc.art = new Artplayer({
@@ -336,12 +375,12 @@
         screenshot: true,
         setting: true,
         theme: '#39f',
-        // type,
+        type: type === 'hls' ? 'm3u8' : type,
         plugins: [
           artplayerPluginHlsControl({
             quality: {
               // Show qualitys in control
-              control: true,
+              control: false,
               // Show qualitys in setting
               setting: true,
               // Get the quality name from level
@@ -399,7 +438,7 @@
               art.torrent.loadWorker(navigator.serviceWorker.controller);
 
               art.torrent.add(url, torrent => {
-                const file = torrent.files.find(file =>  file.name.endsWith('.mp4'));
+                const file = torrent.files.find(file => file.name.endsWith('.mp4'));
                 file.streamTo(video);
               });
 
@@ -419,17 +458,6 @@
     // see https://dplayer.diygod.dev/zh/guide.html
     async dplayer(url, type) {
       await h5Utils.loadJsOrCss(MP.cdn.dplayer);
-
-      if (!type) {
-        if (url.includes('.m3u8')) {
-          type = 'auto';
-          if (Hls.isSupported()) type = 'customHls';
-        } else if (url.includes('torrent') || url.includes('magnet:')) type = 'customWebTorrent';
-        else if (url.includes('.ts')) type = 'customHls';
-        else if (url.includes('.mp4')) type = 'mp4';
-        else if (url.includes('.flv')) type = 'customFlv';
-        else type = 'auto';
-      }
 
       MP.inc.dp = new DPlayer({
         container: MP.el.player,
